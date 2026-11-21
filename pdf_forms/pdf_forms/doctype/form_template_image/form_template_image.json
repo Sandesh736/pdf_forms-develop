@@ -1,0 +1,97 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-01-17 16:51:16.972815",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "id",
+  "page_index",
+  "image_file",
+  "height",
+  "width",
+  "image",
+  "did_not_convert",
+  "repeat_page",
+  "repeat_after",
+  "copies",
+  "base_index"
+ ],
+ "fields": [
+  {
+   "fieldname": "page_index",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Page Index",
+   "reqd": 1
+  },
+  {
+   "fieldname": "image_file",
+   "fieldtype": "Attach Image",
+   "label": "Image File"
+  },
+  {
+   "fieldname": "height",
+   "fieldtype": "Int",
+   "label": "Height"
+  },
+  {
+   "fieldname": "width",
+   "fieldtype": "Int",
+   "label": "Width"
+  },
+  {
+   "fieldname": "image",
+   "fieldtype": "Image",
+   "label": "Image",
+   "options": "image_file"
+  },
+  {
+   "default": "0",
+   "fieldname": "did_not_convert",
+   "fieldtype": "Check",
+   "label": "Did Not Convert"
+  },
+  {
+   "default": "0",
+   "fieldname": "repeat_page",
+   "fieldtype": "Check",
+   "label": "Repeat Page"
+  },
+  {
+   "fieldname": "repeat_after",
+   "fieldtype": "Int",
+   "label": "Repeat After"
+  },
+  {
+   "fieldname": "copies",
+   "fieldtype": "Small Text",
+   "label": "Copies"
+  },
+  {
+   "fieldname": "base_index",
+   "fieldtype": "Int",
+   "label": "Base Index"
+  },
+  {
+   "fieldname": "id",
+   "fieldtype": "Data",
+   "label": "ID",
+   "reqd": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-03-31 10:56:29.368755",
+ "modified_by": "Administrator",
+ "module": "PDF Forms",
+ "name": "Form Template Image",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

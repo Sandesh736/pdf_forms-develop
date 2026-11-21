@@ -1,0 +1,35 @@
+
+export interface FormTemplateImage{
+	name: string
+	creation: string
+	modified: string
+	owner: string
+	modified_by: string
+	docstatus: 0 | 1 | 2
+	parent?: string
+	parentfield?: string
+	parenttype?: string
+	idx?: number
+	/**	ID : Data	*/
+	id: string
+	/**	Page Index : Int	*/
+	page_index: number
+	/**	Image File : Attach Image	*/
+	image_file?: string
+	/**	Height : Int	*/
+	height?: number
+	/**	Width : Int	*/
+	width?: number
+	/**	Image : Image	*/
+	image?: string
+	/**	Did Not Convert : Check	*/
+	did_not_convert?: 0 | 1
+	/**	Repeat Page : Check	*/
+	repeat_page?: 0 | 1
+	/**	Repeat After : Int	*/
+	repeat_after?: number
+	/**	Copies : Small Text	*/
+	copies?: string
+	/**	Base Index : Int	*/
+	base_index?: number
+}

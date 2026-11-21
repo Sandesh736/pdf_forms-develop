@@ -1,0 +1,78 @@
+[project]
+name = "pdf_forms"
+authors = [
+    { name = "Frappe Technologies Pvt. Ltd.", email = "contact@frappe.io"}
+]
+description = "Frappe app to manage document mapping and printing"
+requires-python = ">=3.10"
+readme = "README.md"
+dynamic = ["version"]
+dependencies = [
+    # "frappe~=15.0.0" # Installed and managed by bench.
+    "pdf2image",
+    # PyMuPDF 2.0 stops writing a field's /DA on Widget.update(), so overridden
+    # fonts and sizes print in the original face; pinned until print.py sets /DA itself.
+    "pymupdf>=1.27,<2",
+    "pymupdf-fonts"
+]
+
+[build-system]
+requires = ["flit_core >=3.4,<4"]
+build-backend = "flit_core.buildapi"
+
+# System (apt) packages installed by Frappe Cloud when building the bench image.
+# poppler-utils provides pdfinfo/pdftoppm, which pdf2image needs.
+[tool.frappe-cloud]
+apt-dependencies = [
+    "poppler-utils",
+]
+
+# These dependencies are only installed when developer mode is enabled
+[tool.bench.dev-dependencies]
+# package_name = "~=1.1.0"
+
+# The React workspace in documents/, for Pilot's prebuilt-assets build
+# (.github/workflows/app-assets.yml) and Frappe Cloud.
+[tool.bench.assets]
+build_dir = "./documents"
+out_dir = "../pdf_forms/public/documents"
+index_html_path = "../pdf_forms/www/pdf_forms.html"
+
+[tool.bench.frappe-dependencies]
+frappe = ">=16.0.0,<18.0.0"
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "F",
+    "E",
+    "W",
+    "I",
+    "UP",
+    "B",
+    "RUF",
+]
+ignore = [
+    "B017", # assertRaises(Exception) - should be more specific
+    "B018", # useless expression, not assigned to anything
+    "B023", # function doesn't bind loop variable - will have last iteration's value
+    "B904", # raise inside except without from
+    "E101", # indentation contains mixed spaces and tabs
+    "E402", # module level import not at top of file
+    "E501", # line too long
+    "E741", # ambiguous variable name
+    "F401", # "unused" imports
+    "F403", # can't detect undefined names from * import
+    "F405", # can't detect undefined names from * import
+    "F722", # syntax error in forward type annotation
+    "W191", # indentation contains tabs
+]
+typing-modules = ["frappe.types.DF"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "tab"
+docstring-code-format = true

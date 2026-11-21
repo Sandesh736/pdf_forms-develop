@@ -1,0 +1,78 @@
+import * as React from "react"
+import { Tooltip as TooltipPrimitive } from "radix-ui"
+
+import { cn } from "@lib/utils"
+
+function TooltipProvider({
+  delayDuration = 500,
+  ...props
+}: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  return (
+    <TooltipPrimitive.Provider
+      data-slot="tooltip-provider"
+      delayDuration={delayDuration}
+      {...props}
+    />
+  )
+}
+
+function Tooltip({
+  ...props
+}: React.ComponentProps<typeof TooltipPrimitive.Root>) {
+  return <TooltipPrimitive.Root data-slot="tooltip" {...props} />
+}
+
+function TooltipTrigger({
+  ...props
+}: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
+  return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />
+}
+
+function TooltipContent({
+  className,
+  sideOffset = 2,
+  children,
+  arrowClassName,
+  ...props
+}: React.ComponentProps<typeof TooltipPrimitive.Content> & { arrowClassName?: string }) {
+  return (
+    <TooltipPrimitive.Portal>
+      <TooltipPrimitive.Content
+        data-slot="tooltip-content"
+        sideOffset={sideOffset}
+        className={cn(
+          "bg-surface-gray-10 shadow-xl text-ink-base animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 w-fit origin-(--radix-tooltip-content-transform-origin) rounded px-2 py-1 text-p-xs text-balance",
+          className
+        )}
+        {...props}
+      >
+        {children}
+        <TooltipPrimitive.Arrow className={cn("fill-surface-gray-10", arrowClassName)} width={8} height={4} />
+      </TooltipPrimitive.Content>
+    </TooltipPrimitive.Portal>
+  )
+}
+
+/**
+ * Convenience for icon-only buttons: wraps the single child as a styled-tooltip
+ * trigger. Use INSTEAD of the native `title` attribute (never both — double
+ * tooltips). Needs a TooltipProvider ancestor (mounted globally in App).
+ */
+function WithTooltip({
+  tip,
+  side,
+  children,
+}: {
+  tip: React.ReactNode
+  side?: "top" | "right" | "bottom" | "left"
+  children: React.ReactElement
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent side={side}>{tip}</TooltipContent>
+    </Tooltip>
+  )
+}
+
+export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, WithTooltip }

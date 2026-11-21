@@ -1,0 +1,82 @@
+import * as React from "react"
+import { ChevronDownIcon } from "lucide-react"
+import { Accordion as AccordionPrimitive } from "radix-ui"
+
+import { cn } from "@lib/utils"
+
+function Accordion({
+  className,
+  ...props
+}: React.ComponentProps<typeof AccordionPrimitive.Root>) {
+  return (
+    <AccordionPrimitive.Root
+      data-slot="accordion"
+      className={cn(className)}
+      {...props}
+    />
+  )
+}
+
+function AccordionItem({
+  className,
+  ...props
+}: React.ComponentProps<typeof AccordionPrimitive.Item>) {
+  return (
+    <AccordionPrimitive.Item
+      data-slot="accordion-item"
+      className={cn("border-b border-outline-gray-2", className)}
+      {...props}
+    />
+  )
+}
+
+function AccordionTrigger({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<typeof AccordionPrimitive.Trigger>) {
+  return (
+    <AccordionPrimitive.Header className="flex">
+      <AccordionPrimitive.Trigger
+        data-slot="accordion-trigger"
+        className={cn(
+          "flex flex-1 cursor-pointer items-center justify-between gap-2 py-4 text-start text-sm font-medium transition-all outline-none [&[data-state=open]>svg]:rotate-180",
+          className
+        )}
+        {...props}
+      >
+        {children}
+        <ChevronDownIcon
+          aria-hidden
+          className="size-4 shrink-0 text-ink-gray-5 transition-transform duration-200"
+        />
+      </AccordionPrimitive.Trigger>
+    </AccordionPrimitive.Header>
+  )
+}
+
+function AccordionContent({
+  className,
+  contentClassName,
+  children,
+  ...props
+}: React.ComponentProps<typeof AccordionPrimitive.Content> & {
+  /** Classes for the Radix content element itself (the animated, overflow-hidden
+   *  wrapper) — needed when the content must take part in a flex height chain. */
+  contentClassName?: string
+}) {
+  return (
+    <AccordionPrimitive.Content
+      data-slot="accordion-content"
+      className={cn(
+        "overflow-hidden text-sm data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down",
+        contentClassName
+      )}
+      {...props}
+    >
+      <div className={cn("pb-4 pt-0", className)}>{children}</div>
+    </AccordionPrimitive.Content>
+  )
+}
+
+export { Accordion, AccordionItem, AccordionTrigger, AccordionContent }

@@ -1,0 +1,50 @@
+# Copyright (c) 2026, Frappe Technologies Pvt. Ltd. and contributors
+# For license information, please see license.txt
+
+import json
+import re
+
+import frappe
+import frappe.sessions
+from frappe import _
+
+no_cache = 1
+
+SCRIPT_TAG_PATTERN = re.compile(r"\<script[^<]*\</script\>")
+CLOSING_SCRIPT_TAG_PATTERN = re.compile(r"</script\>")
+
+
+def get_context(context):
+	csrf_token = frappe.sessions.get_csrf_token()
+	# Required to commit the CSRF token before the page context renders.
+	frappe.db.commit()  # nosemgrep
+
+	context = frappe._dict()
+	context.boot = get_boot()
+	context.csrf_token = csrf_token
+	context.build_version = frappe.utils.get_build_version()
+
+	return context
+
+
+# nosemgrep: frappe-semgrep-rules.rules.security.guest-whitelisted-method - Developer mode only, reviewed by security team
+@frappe.whitelist(methods=["POST"], allow_guest=True)
+def get_context_for_dev():
+	if not frappe.conf.developer_mode:
+		frappe.throw(_("This method is only meant for developer mode"))
+	return json.loads(get_boot())
+
+
+def get_boot():
+	try:
+		boot = frappe.sessions.get()
+	except Exception as e:
+		raise frappe.SessionBootFailed from e
+
+	boot_json = frappe.as_json(boot, indent=None, separators=(",", ":"))
+	boot_json = SCRIPT_TAG_PATTERN.sub("", boot_json)
+
+	boot_json = CLOSING_SCRIPT_TAG_PATTERN.sub("", boot_json)
+	boot_json = json.dumps(boot_json)
+
+	return boot_json

@@ -1,0 +1,310 @@
+import { Alert, AlertTitle, AlertDescription } from '@components/ui/alert'
+import ErrorBanner from '@components/ui/error-banner'
+import { useAnnotationFocus } from '@hooks/useAnnotationFocus'
+import type { Annotation, AnnotationBodyElement } from '@types/Annotation'
+import type { FormTemplateImage } from '@types/FormPrinter/FormTemplateImage'
+import { useFrappeDocTypeEventListener, useFrappeEventListener, useFrappeGetCall, useFrappePostCall } from 'frappe-react-sdk'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { ImageAnnotator } from './ImageAnnotator'
+import { AnnotationDeleteModal } from './AnnotationDeleteModal'
+import { AnnotationSyncState } from './AnnotationSyncState'
+import { Eye } from 'lucide-react'
+import { usePreviewData } from '../PreviewDataContext'
+import _ from '@lib/translate'
+
+interface GetTemplateFieldResponse {
+    name: string,
+    value: string,
+    source: string,
+    page_index: number,
+    form_template_image: string
+    annotation_type: string,
+    field_name: string,
+    field_label: string,
+}
+// We only store annotation layout detail changes. Rest is combined from server data.
+export interface TemplateUnsavedAnnotation {
+    form_template_image: string,
+    source: string,
+    id: string,
+    page_index: number,
+    value: string,
+    form_template_id: string,
+}
+
+interface AnnotatorProps {
+    templateID: string
+}
+export const Annotator = ({ templateID }: AnnotatorProps) => {
+
+    //Queue to maintain annotation changes
+    const [unsavedAnnotations, setUnsavedAnnotations] = useState<TemplateUnsavedAnnotation[]>([])
+    const { call, loading } = useFrappePostCall<void>('pdf_forms.pdf_forms.doctype.form_template_field.form_template_field.update_annotation')
+
+    const { data: formTemplateImages } = useFrappeGetCall<{ message: FormTemplateImage[] }>('pdf_forms.pdf_forms.doctype.form_template_field.form_template_field.get_for_template_images', {
+        form_template_id: templateID
+    }, undefined, {
+        revalidateOnFocus: false,
+        keepPreviousData: true,
+        revalidateIfStale: false
+    })
+    const templateImages = useMemo<FormTemplateImage[]>(
+        () => [...(formTemplateImages?.message ?? [])].sort((a, b) => a.page_index - b.page_index),
+        [formTemplateImages?.message]
+    )
+
+    const { data: annotations, mutate, error } = useFrappeGetCall<{ message: GetTemplateFieldResponse[] }>('pdf_forms.pdf_forms.doctype.form_template_field.form_template_field.get_annotations', {
+        form_template_id: templateID
+    }, ['form_template_annotations', templateID], {
+        revalidateOnFocus: false,
+        revalidateIfStale: false,
+        revalidateOnReconnect: false,
+    })
+
+    useFrappeDocTypeEventListener('Form Template', (data) => {
+        if (data?.name === templateID) {
+            mutate()
+        }
+    })
+
+    useFrappeEventListener('annotations_deleted', (data) => {
+        if (data.form_template_id === templateID) {
+            mutate()
+        }
+    })
+
+    const addToAnnotationUpdateQueue = useCallback((annotation: Annotation, pageIndex: number) => {
+
+        const annotationObject = {
+            form_template_image: templateImages?.[pageIndex]?.id ?? '',
+            source: annotation.target.source,
+            id: annotation.id,
+            form_template_id: templateID,
+            page_index: pageIndex,
+            value: annotation.target.selector.value
+        }
+
+        const annotationIndexInQueue = unsavedAnnotations.findIndex(a => a.id === annotation.id)
+        if (annotationIndexInQueue === -1) {
+            setUnsavedAnnotations([...unsavedAnnotations, annotationObject])
+        } else {
+            const newAnnotationUpdateQueue = [...unsavedAnnotations]
+            newAnnotationUpdateQueue[annotationIndexInQueue] = annotationObject
+            setUnsavedAnnotations(newAnnotationUpdateQueue)
+        }
+
+    }, [unsavedAnnotations, templateImages, templateID])
+
+    const uploadToDatabase = async () => {
+        return call({
+            'form_template_id': templateID,
+            'annotations': unsavedAnnotations
+        }).then(() => mutate()).then(() => {
+            setUnsavedAnnotations([])
+        })
+    }
+    // If there are any changes, send a request to the server
+    useEffect(() => {
+
+        const uploadToDatabase = async () => {
+            return call({
+                'form_template_id': templateID,
+                'annotations': unsavedAnnotations
+            }).then(() => mutate()).then(() => {
+                setUnsavedAnnotations([])
+            })
+
+        }
+        let timeout: ReturnType<typeof setTimeout> | null = null
+        if (unsavedAnnotations.length > 0) {
+            timeout = setTimeout(uploadToDatabase, 1000)
+        }
+
+        return () => {
+            if (timeout) clearTimeout(timeout)
+        }
+    }, [unsavedAnnotations, templateID, call, mutate])
+
+    const { focusedAnnotation, onAnnotationClick, setFocusedAnnotation } = useAnnotationFocus(templateID)
+
+    // Values for the document chosen in the Preview tab, drawn over the page.
+    const { docName: previewDocName, values: previewValues, fonts: previewFonts } = usePreviewData()
+
+    const [deleteAnnotationID, setDeleteAnnotationID] = useState<string | null>(null)
+    const [resetViewportNonce, setResetViewportNonce] = useState(0)
+
+    const deleteAnnotationModalClose = useCallback(() => {
+        setDeleteAnnotationID(null)
+    }, [setDeleteAnnotationID])
+
+    const onAnnotationDeleted = useCallback(() => {
+        onAnnotationClick(null)
+        setResetViewportNonce((n) => n + 1)
+    }, [onAnnotationClick])
+
+    const parsedAnnotations: Record<number, Annotation[]> = useMemo(() => {
+
+        const annotationPages: Record<number, Annotation[]> = {}
+
+        if (annotations) {
+            annotations.message.forEach(a => {
+                if (a.name !== deleteAnnotationID) {
+                    if (!annotationPages[a.page_index]) {
+                        annotationPages[a.page_index] = []
+                    }
+                    const body: AnnotationBodyElement = {
+                        type: "TextualBody",
+                        value: a.annotation_type === 'Auto' ? 'Auto' : 'Manual',
+                        purpose: "tagging"
+                    }
+                    annotationPages[a.page_index].push({
+                        id: a.name,
+                        "type": "Annotation",
+                        "@context": "http://www.w3.org/ns/anno.jsonld",
+                        body: [body],
+                        target: {
+                            source: a.source,
+                            selector: {
+                                type: "FragmentSelector",
+                                value: a.value,
+                                "conformsTo": "http://www.w3.org/TR/media-frags/",
+                            }
+                        }
+                    })
+                }
+            })
+        }
+        if (unsavedAnnotations.length) {
+            unsavedAnnotations.forEach((a) => {
+                if (a.id !== deleteAnnotationID) {
+                    if (!annotationPages[a.page_index]) {
+                        annotationPages[a.page_index] = []
+                    }
+                    //If unsaved annotation exists, we need to merge. Else we need to push
+                    const existingAnnotationIndex = annotationPages[a.page_index].findIndex(ann => ann.id === a.id)
+                    if (existingAnnotationIndex === -1) {
+                        annotationPages[a.page_index].push({
+                            "@context": "http://www.w3.org/ns/anno.jsonld",
+                            "type": "Annotation",
+                            "body": [
+                                {
+                                    "type": "TextualBody",
+                                    "purpose": "tagging",
+                                    "value": "Untagged"
+                                }
+                            ],
+                            id: a.id,
+                            target: {
+                                source: a.source,
+                                selector: {
+                                    type: 'FragmentSelector',
+                                    value: a.value,
+                                    "conformsTo": "http://www.w3.org/TR/media-frags/",
+                                }
+                            }
+                        })
+                    } else {
+                        annotationPages[a.page_index][existingAnnotationIndex] = {
+                            ...annotationPages[a.page_index][existingAnnotationIndex],
+                            target: {
+                                source: a.source,
+                                selector: {
+                                    type: 'FragmentSelector',
+                                    value: a.value,
+                                    "conformsTo": "http://www.w3.org/TR/media-frags/",
+                                }
+                            }
+                        }
+                    }
+                }
+            })
+        }
+        return annotationPages
+    }, [unsavedAnnotations, annotations, deleteAnnotationID])
+
+    const focusedAnnotationWithPageIndex = useMemo(() => {
+        if (focusedAnnotation && annotations) {
+            const a = annotations?.message.find(a => a.name === focusedAnnotation)
+            if (a) {
+                return {
+                    annotation: focusedAnnotation,
+                    pageIndex: a.page_index
+                }
+            }
+        }
+        return undefined
+    }, [focusedAnnotation, annotations])
+
+    const annotationLabels = useMemo(() => {
+        const m: Record<string, { field_label?: string; field_name?: string }> = {}
+        annotations?.message?.forEach((a) => {
+            m[a.name] = { field_label: a.field_label, field_name: a.field_name }
+        })
+        return m
+    }, [annotations])
+
+    if (templateImages && templateImages.length) {
+        return (
+            <>
+                <ImageAnnotator
+                    images={templateImages}
+                    annotationToFocus={focusedAnnotationWithPageIndex}
+                    onAnnotationClick={onAnnotationClick}
+                    onAnnotationUpdate={addToAnnotationUpdateQueue}
+                    annotations={parsedAnnotations}
+                    annotationLabels={annotationLabels}
+                    id={`osd-form-template-${templateID}`}
+                    setFocusedAnnotation={setFocusedAnnotation}
+                    onAnnotationDelete={setDeleteAnnotationID}
+                    resetZoomNonce={resetViewportNonce}
+                    previewValues={previewValues}
+                    previewFonts={previewFonts}
+                    backTo={
+                        import.meta.env.VITE_DESK_FORM_TEMPLATE_LIST_URL?.trim() ||
+                        `${String(import.meta.env.VITE_FRAPPE_PATH ?? '').replace(/\/$/, '')}/app/list/${encodeURIComponent('Form Template')}/List`
+                    }
+                    backLabel="Back to Desk"
+                    backToExternal
+                    customButtons={<>
+                        {previewDocName && (
+                            <span
+                                // min-w-0 so the chip gives way on a narrow pane
+                                // instead of overflowing onto the page controls.
+                                className="flex min-w-0 items-center gap-1.5 self-center rounded-full bg-surface-blue-2 px-2.5 py-1 text-xs text-ink-blue-8"
+                                title={_("Showing values from {0}", [previewDocName])}
+                            >
+                                <Eye className="size-3.5 shrink-0" />
+                                <span className="min-w-0 max-w-[16ch] truncate">{previewDocName}</span>
+                            </span>
+                        )}
+                        <AnnotationSyncState
+                            hasUnsavedChanges={unsavedAnnotations.length > 0}
+                            forceUpdate={uploadToDatabase}
+                            syncing={loading} />
+                    </>} />
+                <AnnotationDeleteModal annotationID={deleteAnnotationID} templateID={templateID} onClose={deleteAnnotationModalClose} onDeleted={onAnnotationDeleted} />
+            </>
+        )
+    }
+
+    if (formTemplateImages && formTemplateImages.message.length === 0) {
+        // return <Center m='4'><AlertBanner status='warning' heading='We did not find any images.'>This can happen if the PDF file is still being converted to images. Please try again later.</AlertBanner></Center>
+        return <div className='flex flex-col items-center justify-center w-full h-full'>
+            <Alert variant="subtle" theme="amber">
+                <AlertTitle>
+                    {_("No images were found.")}
+                </AlertTitle>
+                <AlertDescription>
+                    {_("This can happen if the PDF file is still being converted to images. Please try again later.")}
+                </AlertDescription>
+            </Alert>
+        </div>
+    }
+
+    if (error) {
+        // return <Center m='4'><AlertBanner status='error' heading='There was an error while loading the images.'>{error.httpStatusText} [{error.httpStatus}]</AlertBanner></Center>
+        return <ErrorBanner error={error} />
+    }
+
+    return null
+}
